@@ -1,5 +1,5 @@
 name = "CBORCodecs"
-uuid = "7f3e1038-61bc-5414-967e-017c9d82adda"
+uuid = "ca4961de-fbdc-11ef-3aad-a3ebf6911431"
 version = "0.1.0"
 
 [deps]
