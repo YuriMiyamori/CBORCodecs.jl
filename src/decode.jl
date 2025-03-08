@@ -55,6 +55,7 @@ end
 decode_type0(::Val{ADDNTL_INFO_UINT8}, io::IO) = bswap(read(io, UInt8)) |> Int
 decode_type0(::Val{ADDNTL_INFO_UINT16}, io::IO) = bswap(read(io, UInt16)) |> Int
 decode_type0(::Val{ADDNTL_INFO_UINT32}, io::IO) = bswap(read(io, UInt32)) |> Int
+
 function decode_type0(::Val{ADDNTL_INFO_UINT64}, io::IO)::Union{Int, Int64}
     val = bswap(read(io, UInt64))
     if val > INT64_MAX_POSITIVE
@@ -63,7 +64,10 @@ function decode_type0(::Val{ADDNTL_INFO_UINT64}, io::IO)::Union{Int, Int64}
         return Int(val)
     end
 end
-decode_type0(addntl_info::UInt8, io::IO) = error("Unknown additional info for unsigned integer: $addntl_info")
+
+function decode_tag(::Val{N}, io::IO) where N
+    error("Unknown additional info for unsigned integer: $addntl_info")
+end
 
 # Decode unsigned integer with additional info in 0-23 range (single byte)
 decode_type0_tag(::Val{ADDNTL_INFO_UINT8}, io::IO) = bswap(read(io, UInt8))
@@ -321,12 +325,14 @@ end
 Decode CBOR tag 27 to julia struct
 """
 function decode_tag(::Val{CUSTOM_LANGUAGE_TYPE}, data::Vector)
-    name = data[1]
-    object_serialized = data[2]
-    if startswith(name, "Julia/") # Julia Type
-        return deserialize(IOBuffer(object_serialized))
+    if length(data) == 2
+        name = data[1]
+        object_serialized = data[2]
+        if startswith(name, "Julia/") # Julia Type
+            return deserialize(IOBuffer(object_serialized))
+        end
     else
-        return Tag(name, object_serialized)
+        return Tag(Int(CUSTOM_LANGUAGE_TYPE), data)
     end
 end
 """
@@ -338,9 +344,8 @@ decode_tag(::Val{TAG_URI}, data::String) = string(data)
 Decode CBOR tag not defined to Tag
 """
 function decode_tag(::Val{N}, data::Any) where N
-    println("decode Unknown tag")
     @debug "Encountered undefined CBOR tag: $N"
-    return Tag(convert(Int, N), data)
+    return Tag(Int(N), data)
 end
 
 """
