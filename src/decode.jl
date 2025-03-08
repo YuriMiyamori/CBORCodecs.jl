@@ -55,7 +55,7 @@ end
 decode_type0(::Val{ADDNTL_INFO_UINT8}, io::IO) = bswap(read(io, UInt8)) |> Int
 decode_type0(::Val{ADDNTL_INFO_UINT16}, io::IO) = bswap(read(io, UInt16)) |> Int
 decode_type0(::Val{ADDNTL_INFO_UINT32}, io::IO) = bswap(read(io, UInt32)) |> Int
-function decode_type0(::Val{ADDNTL_INFO_UINT64}, io::IO) 
+function decode_type0(::Val{ADDNTL_INFO_UINT64}, io::IO)::Union{Int, Int64}
     val = bswap(read(io, UInt64))
     if val > INT64_MAX_POSITIVE
         return val
@@ -65,13 +65,23 @@ function decode_type0(::Val{ADDNTL_INFO_UINT64}, io::IO)
 end
 decode_type0(addntl_info::UInt8, io::IO) = error("Unknown additional info for unsigned integer: $addntl_info")
 
+# Decode unsigned integer with additional info in 0-23 range (single byte)
+decode_type0_tag(::Val{ADDNTL_INFO_UINT8}, io::IO) = bswap(read(io, UInt8))
+decode_type0_tag(::Val{ADDNTL_INFO_UINT16}, io::IO) = bswap(read(io, UInt16))
+decode_type0_tag(::Val{ADDNTL_INFO_UINT32}, io::IO) = bswap(read(io, UInt32))
+decode_type0_tag(::Val{ADDNTL_INFO_UINT64}, io::IO) = bswap(read(io, UInt64))
+
 function decode_unsigned_tag(io::IO)
-    # type is only Uint8
+    # type is only Uint
     addntl_info = read(io, UInt8) & ADDNTL_INFO_MASK
-    if addntl_info < SINGLE_BYTE_UINT_PLUS_ONE 
-        return addntl_info
-    end
-    return bswap(read(io, UInt8)) 
+    tag = begin
+            if addntl_info < SINGLE_BYTE_UINT_PLUS_ONE 
+                addntl_info
+            else
+                decode_type0_tag(Val(addntl_info), io)
+            end
+        end
+    return tag
 end
 
 function decode_unsigned(io::IO)
@@ -310,7 +320,7 @@ end
 """
 Decode CBOR tag 27 to julia struct
 """
-function decode_tag(::Val{CUSTOM_LANGUAGE_TYPE}, data::Vector{UInt8})
+function decode_tag(::Val{CUSTOM_LANGUAGE_TYPE}, data::Vector)
     name = data[1]
     object_serialized = data[2]
     if startswith(name, "Julia/") # Julia Type
@@ -328,8 +338,9 @@ decode_tag(::Val{TAG_URI}, data::String) = string(data)
 Decode CBOR tag not defined to Tag
 """
 function decode_tag(::Val{N}, data::Any) where N
-  @debug "Encountered undefined CBOR tag: $N"
-  return Tag(convert(Int, N), data)
+    println("decode Unknown tag")
+    @debug "Encountered undefined CBOR tag: $N"
+    return Tag(convert(Int, N), data)
 end
 
 """
@@ -406,7 +417,7 @@ The decode function can convert CBOR data to the following Julia types:
     - Use set_map_decoder(:Dict) or set_map_decoder(:OrderedDict) to control how maps are decoded
     - Use set_datetime_type(:DateTime), set_datetime_type(:ZonedDateTime), or set_datetime_type(:NanoDate) to control date/time decoding 
 """
-function decode(data::Array{UInt8, 1})
+function decode(data::Vector{UInt8})
     return decode_internal(IOBuffer(data))
 end
 

@@ -49,44 +49,44 @@ CBORCodecs.jl supports a variety of Julia types for seamless encoding and decodi
 CBOR Major Types
 ### CBOR Major Types
 
-| CBOR Type | First 3 bits | Description | Julia Representation |
-|-----------|--------------|-------------|----------------------|
-| Type 0 | 000 | Unsigned integer (0 to 2^64-1) | UInt8 to UInt64 |
-| Type 1 | 001 | Negative integer (-2^64 to -1) | Int8 to Int64 |
-| Type 2 | 010 | Byte string | Vector{UInt8} |
-| Type 3 | 011 | Text string (UTF-8 encoded) | String |
-| Type 4 | 100 | Array | Vector, Tuple |
-| Type 5 | 101 | Map (key-value pairs) | Dict, OrderedDict |
-| Type 6 | 110 | Tagged data item | Tag{T} |
-| Type 7 | 111 | Floating-point or special values | Float16/32/64, Bool, Nothing |
+| CBOR Type | Description | Julia Representation | Example |
+|-----------|-------------|----------------------|---------|
+| Type 0 | Unsigned integer (0 to 2^64-1) | `UInt8` to `UInt64` | `42` |
+| Type 1 | Negative integer (-2^64 to -1) | `Int8` to `Int64` | `-42` |
+| Type 2 | Byte string | `Vector{UInt8}` | `UInt8[0x01, 0x02, 0x03]` |
+| Type 3 | Text string (UTF-8 encoded) | `String` | `"Hello, world!"` |
+| Type 4 | Array | `Vector`, `Tuple` | `[1, 2, 3]`, `(1, "a", true)` |
+| Type 5 | Map (key-value pairs) | `Dict`, `OrderedDict` | `Dict("a" => 1, "b" => 2)` |
+| Type 6 | Tagged data item | `Tag{T}` | `Tag(0, DateTime(2023,1,1))` |
+| Type 7 | Floating-point or special values | `Float16` to `Float64`, `Bool`, `Nothing` | `3.14`, `true`, `nothing` |
 
 ### CBOR Tags (Used with Type 6)
 
 | Tag Number | Description | Julia Representation | Example |
 |------------|-------------|----------------------|---------|
-| 0 | Standard date/time string (RFC 3339) | DateTime, ZonedDateTime | encode(DateTime(2023,1,1)) |
-| 1 | UNIX timestamp (number) | DateTime | Epoch time in seconds or milliseconds |
-| 2 | Positive BigInt | BigInt (positive) | encode(BigInt(10)^100) |
-| 3 | Negative BigInt | BigInt (negative) | encode(-BigInt(10)^100) |
-| 4 | Decimal fraction | Decimal | Decimal numbers |
-| 5 | BigFloat | BigFloat | High-precision floating point |
-| 24 | Encoded CBOR data item | Nested CBOR within byte string | CBOR-in-CBOR |
-| 27 | Language-specific serialization | Julia custom types | `struct Point`, etc. |
-| 32 | URI | String (URI format) | "https://example.com" |
+| 0 | Standard date/time string (RFC 3339) | `DateTime`, `ZonedDateTime` | `DateTime(2023, 1, 1, 0, 0, 0)` |
+| 1 | UNIX timestamp (number) | `DateTime` | `DateTime(2023, 1, 1, 0, 0, 0)` |
+| 2 | Positive BigInt | `BigInt` (positive) | `BigInt(10)^100` |
+| 3 | Negative BigInt | `BigInt` (negative) | `-BigInt(10)^100` |
+| 4 | Decimal fraction | `Decimal` | `parse(Decimal, "12.34")` |
+| 5 | BigFloat | `BigFloat` | `BigFloat("3.14159265358979323846")` |
+| 24 | Encoded CBOR data item | Nested CBOR within byte string | `Tag(4000, UInt8[0x82, 0x01, 0x02])` |
+| 27 | Language-specific serialization | Julia custom types | `Point(1, 2, "xyz")` |
+| 32 | URI | `String` (URI format) | `"https://example.com"` |
 
 ### Type 7 Special Values
 
-| Value | Description | Julia Representation |
-|-------|-------------|----------------------|
-| 20 | False | false |
-| 21 | True | true |
-| 22 | Null | nothing |
-| 23 | Undefined | Undefined() |
-| 24 | Simple value (8-bit) | - |
-| 25 | IEEE 754 Half-precision (16-bit) | Float16 |
-| 26 | IEEE 754 Single-precision (32-bit) | Float32 |
-| 27 | IEEE 754 Double-precision (64-bit) | Float64 |
-| 31 | Break stop code (for indefinite items) | - |
+| Value | Description | Julia Representation | Example |
+|-------|-------------|----------------------|---------|
+| 20 | False | `Bool` | `false` |
+| 21 | True | `Bool` | `true` |
+| 22 | Null | `Nothing` | `nothing` |
+| 23 | Undefined | `Missing` | `missing` |
+| 24 | Simple value (8-bit) | `UInt8` | `UInt8(25)` |
+| 25 | IEEE 754 Half-precision (16-bit) | `Float16` | `Float16(3.14)` |
+| 26 | IEEE 754 Single-precision (32-bit) | `Float32` | `Float32(3.14159)` |
+| 27 | IEEE 754 Double-precision (64-bit) | `Float64` | `Float64(3.14159265359)` |
+| 31 | Break stop code (for indefinite items) | - | *内部使用のみ* |
 
 where `bytes` is of type `Array{UInt8, 1}`, and `data` returned from `decode()`
 is *usually* of the same type that was passed into `encode()` but always
