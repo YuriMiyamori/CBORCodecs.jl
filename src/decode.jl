@@ -52,16 +52,16 @@ function decode_ntimes(f, io::IO)
     end
 end
 
-decode_type0(::Val{ADDNTL_INFO_UINT8}, io::IO) = bswap(read(io, UInt8)) |> Int
-decode_type0(::Val{ADDNTL_INFO_UINT16}, io::IO) = bswap(read(io, UInt16)) |> Int
-decode_type0(::Val{ADDNTL_INFO_UINT32}, io::IO) = bswap(read(io, UInt32)) |> Int
+decode_type0(::Val{ADDNTL_INFO_UINT8}, io::IO) = bswap(read(io, UInt8)) |> Int64
+decode_type0(::Val{ADDNTL_INFO_UINT16}, io::IO) = bswap(read(io, UInt16)) |> Int64
+decode_type0(::Val{ADDNTL_INFO_UINT32}, io::IO) = bswap(read(io, UInt32)) |> Int64
 
-function decode_type0(::Val{ADDNTL_INFO_UINT64}, io::IO)::Union{Int, Int64}
+function decode_type0(::Val{ADDNTL_INFO_UINT64}, io::IO)::Union{Int64, UInt64}
     val = bswap(read(io, UInt64))
     if val > INT64_MAX_POSITIVE
         return val
     else
-        return Int(val)
+        return Int64(val)
     end
 end
 
@@ -91,7 +91,7 @@ end
 function decode_unsigned(io::IO)
     addntl_info = read(io, UInt8) & ADDNTL_INFO_MASK
     if addntl_info < SINGLE_BYTE_UINT_PLUS_ONE 
-        return addntl_info |> Int
+        return addntl_info |> Int64
     end
     decode_type0(Val(addntl_info), io)
 end
@@ -111,7 +111,7 @@ Decode negative integer with additional info in 0-23 range (single byte)
 """
 function decode_type1(::Val{T}, io::IO) where T
     if T < SINGLE_BYTE_UINT_PLUS_ONE
-        return -Int(T + Int8(1))
+        return -Int64(T + Int8(1))
     else
         error("Unknown additional info for negative integer: $T")
     end
@@ -122,7 +122,7 @@ Decode negative integer with UInt8 payload (additional info = 24)
 """
 function decode_type1(::Val{ADDNTL_INFO_UINT8}, io::IO)
     data = bswap(read(io, UInt8))
-    return -Int(data + one(data))
+    return -Int64(data + one(data))
 end
 
 """
@@ -130,7 +130,7 @@ Decode negative integer with UInt16 payload (additional info = 25)
 """
 function decode_type1(::Val{ADDNTL_INFO_UINT16}, io::IO)
     data = bswap(read(io, UInt16))
-    return -Int(data + one(data))
+    return -Int64(data + one(data))
 end
 
 """
@@ -138,7 +138,7 @@ Decode negative integer with UInt32 payload (additional info = 26)
 """
 function decode_type1(::Val{ADDNTL_INFO_UINT32}, io::IO)
     data = bswap(read(io, UInt32))
-    return -Int(data + one(data))
+    return -Int64(data + one(data))
 end
 
 """
@@ -149,7 +149,7 @@ function decode_type1(::Val{ADDNTL_INFO_UINT64}, io::IO)
     if data > INT64_MAX_POSITIVE
         return -Int128(data + one(data))
     else
-        return -Int(data + one(data))
+        return -Int64(data + one(data))
     end
 end
 
