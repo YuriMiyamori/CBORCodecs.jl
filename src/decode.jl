@@ -52,16 +52,32 @@ function decode_ntimes(f, io::IO)
     end
 end
 
-decode_type0(::Val{ADDNTL_INFO_UINT8}, io::IO) = bswap(read(io, UInt8))
-decode_type0(::Val{ADDNTL_INFO_UINT16}, io::IO) = bswap(read(io, UInt16))
-decode_type0(::Val{ADDNTL_INFO_UINT32}, io::IO) = bswap(read(io, UInt32))
-decode_type0(::Val{ADDNTL_INFO_UINT64}, io::IO) = bswap(read(io, UInt64))
+decode_type0(::Val{ADDNTL_INFO_UINT8}, io::IO) = bswap(read(io, UInt8)) |> Int
+decode_type0(::Val{ADDNTL_INFO_UINT16}, io::IO) = bswap(read(io, UInt16)) |> Int
+decode_type0(::Val{ADDNTL_INFO_UINT32}, io::IO) = bswap(read(io, UInt32)) |> Int
+function decode_type0(::Val{ADDNTL_INFO_UINT64}, io::IO) 
+    val = bswap(read(io, UInt64))
+    if val > INT64_MAX_POSITIVE
+        return val
+    else
+        return Int(val)
+    end
+end
 decode_type0(addntl_info::UInt8, io::IO) = error("Unknown additional info for unsigned integer: $addntl_info")
+
+function decode_unsigned_tag(io::IO)
+    # type is only Uint8
+    addntl_info = read(io, UInt8) & ADDNTL_INFO_MASK
+    if addntl_info < SINGLE_BYTE_UINT_PLUS_ONE 
+        return addntl_info
+    end
+    return bswap(read(io, UInt8)) 
+end
 
 function decode_unsigned(io::IO)
     addntl_info = read(io, UInt8) & ADDNTL_INFO_MASK
     if addntl_info < SINGLE_BYTE_UINT_PLUS_ONE 
-        return addntl_info
+        return addntl_info |> Int
     end
     decode_type0(Val(addntl_info), io)
 end
@@ -81,7 +97,7 @@ Decode negative integer with additional info in 0-23 range (single byte)
 """
 function decode_type1(::Val{T}, io::IO) where T
     if T < SINGLE_BYTE_UINT_PLUS_ONE
-        return -signed(T + Int8(1))
+        return -Int(T + Int8(1))
     else
         error("Unknown additional info for negative integer: $T")
     end
@@ -92,11 +108,7 @@ Decode negative integer with UInt8 payload (additional info = 24)
 """
 function decode_type1(::Val{ADDNTL_INFO_UINT8}, io::IO)
     data = bswap(read(io, UInt8))
-    if data > INT8_MAX_POSITIVE
-        return -Int16(data + one(data))
-    else
-        return -signed(data + one(data))
-    end
+    return -Int(data + one(data))
 end
 
 """
@@ -104,11 +116,7 @@ Decode negative integer with UInt16 payload (additional info = 25)
 """
 function decode_type1(::Val{ADDNTL_INFO_UINT16}, io::IO)
     data = bswap(read(io, UInt16))
-    if data > INT16_MAX_POSITIVE
-        return -Int32(data + one(data))
-    else
-        return -signed(data + one(data))
-    end
+    return -Int(data + one(data))
 end
 
 """
@@ -116,11 +124,7 @@ Decode negative integer with UInt32 payload (additional info = 26)
 """
 function decode_type1(::Val{ADDNTL_INFO_UINT32}, io::IO)
     data = bswap(read(io, UInt32))
-    if data > INT32_MAX_POSITIVE
-        return -Int64(data + one(data))
-    else
-        return -signed(data + one(data))
-    end
+    return -Int(data + one(data))
 end
 
 """
@@ -131,7 +135,7 @@ function decode_type1(::Val{ADDNTL_INFO_UINT64}, io::IO)
     if data > INT64_MAX_POSITIVE
         return -Int128(data + one(data))
     else
-        return -signed(data + one(data))
+        return -Int(data + one(data))
     end
 end
 
@@ -201,7 +205,7 @@ end
 Decode Tagged type
 """
 function decode_internal(io::IO, ::Val{TYPE_6})
-    tag = decode_unsigned(io)
+    tag = decode_unsigned_tag(io)
     data = decode_internal(io)
     return decode_tag(Val(tag), data)
 end
@@ -323,7 +327,10 @@ decode_tag(::Val{TAG_URI}, data::String) = string(data)
 """
 Decode CBOR tag not defined to Tag
 """
-decode_tag(id::UInt8, data::Any) = Tag(id, data)
+function decode_tag(::Val{N}, data::Any) where N
+  @debug "Encountered undefined CBOR tag: $N"
+  return Tag(convert(Int, N), data)
+end
 
 """
 Decode CBOR type 7 float16

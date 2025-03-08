@@ -1,4 +1,4 @@
-# CBOR.jl
+# CBORCodecs.jl
 
 [![Build Status](https://github.com/JuliaData/CBOR.jl/workflows/CI/badge.svg)](https://github.com/JuliaData/CBOR.jl/actions/workflows/CI.yml)
 [![Coverage Status](https://codecov.io/gh/JuliaData/CBOR.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/JuliaData/CBOR.jl)
@@ -25,7 +25,7 @@ CBOR is ideal for IoT applications, WebAuthn, database storage, and anywhere tha
 ```julia
 using Pkg
 Pkg.add("CBORCodecs")
-````
+```
 
 and add the module
 
@@ -46,18 +46,47 @@ data = decode(bytes)
 
 CBORCodecs.jl supports a variety of Julia types for seamless encoding and decoding:
 
-| Julia Type                         | CBOR Type     | Example                       |
-|:----------------------------------|:--------------|:------------------------------|
-| `Int8`-`Int64`, `UInt8`-`UInt64`  | Integer       | `encode(42)`                  |
-| `Float16`, `Float32`, `Float64`   | Float         | `encode(3.14159)`             |
-| `String`                          | Text string   | `encode("Hello world")`       |
-| `Vector{UInt8}`                   | Byte string   | `encode(rand(UInt8, 10))`     |
-| `Vector`, `Tuple`                 | Array         | `encode([1, 2, "three"])`     |
-| `Dict`                            | Map           | `encode(Dict("key" => "value"))` |
-| `Bool`, `Nothing`                 | Simple values | `encode(true)`                |
-| `BigInt`                          | Tagged        | `encode(BigInt(10)^100)`      |
-| `DateTime`                        | Tagged        | `encode(DateTime(2023, 10, 15, 12, 30, 45))` |
+CBOR Major Types
+### CBOR Major Types
 
+| CBOR Type | First 3 bits | Description | Julia Representation |
+|-----------|--------------|-------------|----------------------|
+| Type 0 | 000 | Unsigned integer (0 to 2^64-1) | UInt8 to UInt64 |
+| Type 1 | 001 | Negative integer (-2^64 to -1) | Int8 to Int64 |
+| Type 2 | 010 | Byte string | Vector{UInt8} |
+| Type 3 | 011 | Text string (UTF-8 encoded) | String |
+| Type 4 | 100 | Array | Vector, Tuple |
+| Type 5 | 101 | Map (key-value pairs) | Dict, OrderedDict |
+| Type 6 | 110 | Tagged data item | Tag{T} |
+| Type 7 | 111 | Floating-point or special values | Float16/32/64, Bool, Nothing |
+
+### CBOR Tags (Used with Type 6)
+
+| Tag Number | Description | Julia Representation | Example |
+|------------|-------------|----------------------|---------|
+| 0 | Standard date/time string (RFC 3339) | DateTime, ZonedDateTime | encode(DateTime(2023,1,1)) |
+| 1 | UNIX timestamp (number) | DateTime | Epoch time in seconds or milliseconds |
+| 2 | Positive BigInt | BigInt (positive) | encode(BigInt(10)^100) |
+| 3 | Negative BigInt | BigInt (negative) | encode(-BigInt(10)^100) |
+| 4 | Decimal fraction | Decimal | Decimal numbers |
+| 5 | BigFloat | BigFloat | High-precision floating point |
+| 24 | Encoded CBOR data item | Nested CBOR within byte string | CBOR-in-CBOR |
+| 27 | Language-specific serialization | Julia custom types | `struct Point`, etc. |
+| 32 | URI | String (URI format) | "https://example.com" |
+
+### Type 7 Special Values
+
+| Value | Description | Julia Representation |
+|-------|-------------|----------------------|
+| 20 | False | false |
+| 21 | True | true |
+| 22 | Null | nothing |
+| 23 | Undefined | Undefined() |
+| 24 | Simple value (8-bit) | - |
+| 25 | IEEE 754 Half-precision (16-bit) | Float16 |
+| 26 | IEEE 754 Single-precision (32-bit) | Float32 |
+| 27 | IEEE 754 Double-precision (64-bit) | Float64 |
+| 31 | Break stop code (for indefinite items) | - |
 
 where `bytes` is of type `Array{UInt8, 1}`, and `data` returned from `decode()`
 is *usually* of the same type that was passed into `encode()` but always
@@ -75,19 +104,23 @@ julia> encode(21)
 julia> encode(-135713)
 5-element Vector{UInt8}: 0x3a 0x00 0x02 0x12 0x20
 
-julia> bytes = encode(typemax(UInt64))
-9-element Vector{UInt8}: 0x1b 0xff 0xff 0xff 0xff 0xff 0xff 0xff 0xff
+julia> bytes = encode(typemax(UInt32))
+9-element Vector{UInt8}: 0x1a 0xff 0xff 0xff 0xff 
 
 julia> decode(bytes)
-18446744073709551615
+4294967295
 ```
 
 ### Date and Time Types
-CBORCodecs.jl now supports date/time formats with RFC 3339 strings (tag 0) or UNIX timestamps (tag 1):
+CBORCodecs.jl supports date/time formats with RFC 3339 strings (tag 0) or UNIX timestamps (tag 1):
 
 ```julia
 # Encode a DateTime (automatically tagged as standard date string)
 bytes = encode(DateTime(2023, 10, 15, 12, 30, 45))
+# Encode a ZonedDateTime
+bytes = encode(ZonedDateTime(DateTime(2023, 10, 15, 12, 30, 45), tz"UTC"))
+# Encode a NanoDate with nanosecond precision
+bytes = encode(NanoDate("2023-10-15T12:30:45.123456789"))
 
 # Configure datetime decoding format
 CBOR.set_datetime_type(:DateTime)       # Default
@@ -123,11 +156,11 @@ An `AbstractVector{UInt8}` is encoded as CBOR `Type 2`
 > encode("Valar morghulis")
 16-element Array{UInt8,1}: 0x4f 0x56 0x61 0x6c 0x61 ... 0x68 0x75 0x6c 0x69 0x73
 
-> bytes = encode("אתה יכול לקחת את סוס אל המים, אבל אתה לא יכול להוכיח שום דבר אמיתי")
-119-element Array{UInt8,1}: 0x78 0x75 0xd7 0x90 0xd7 ... 0x99 0xd7 0xaa 0xd7 0x99
+> bytes = encode("案ずるより産むが易し")
+32-element Array{UInt8,1}: 0x78 0x75 0xd7 0x90 0xd7 ... 0x99 0xd7 0xaa 0xd7 0x99
 
 > decode(bytes)
-"אתה יכול לקחת את סוס אל המים, אבל אתה לא יכול להוכיח שום דבר אמיתי"
+"案ずるより産むが易し"
 ```
 
 #### Floats
@@ -197,7 +230,7 @@ To *tag* one of the above types, encode a `Tag` with `first` being an
 > bytes = encode(Tag(80, "web servers"))
 
 > data = decode(bytes)
-0x50=>"HTTP Web Server"
+CBORCodecs.Tag{String}(80, "web servers")
 ```
 
 There exists an [IANA registery](http://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml)
@@ -220,9 +253,6 @@ the bytes of it's hexadecimal representation, and tagged with a value of `2` or
 
 > decode(bytes)  # Raw tag without interpretation
 Tag(3, [0x13, 0xd4, 0x96, 0x58, ...])
-
-> decode_with_iana(bytes)  # With tag interpretation
--14400376622525549608547603031202889616850944000000000000
 ```
 
 To decode `bytes` *without* interpreting the meaning of the tag, use `decode`
