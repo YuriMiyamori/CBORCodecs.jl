@@ -15,7 +15,9 @@ permissions:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     strategy:
+      fail-fast: false
       matrix:
         julia-version: ['lts', '1', 'pre']
         julia-arch: [x64]
