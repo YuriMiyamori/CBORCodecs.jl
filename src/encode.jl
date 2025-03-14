@@ -269,9 +269,12 @@ Base.iterate(x::UndefLength) = iterate(x.iter)
 Base.iterate(x::UndefLength, state) = iterate(x.iter, state)
 
 # ------- encoding for indefinite length collections
-function encode(io::IO, iter::UndefLength{ET}) where ET
+function encode(io::IO, iter::UndefLength{ET, A}) where {ET, A}
     typ = begin
-        if ET == Vector{UInt8}
+        # 文字列や byte string の配列の場合は Type 4 (array) としてエンコード
+        if (A <: AbstractVector || A <: Tuple) && (ET == String || ET == Vector{UInt8})
+            TYPE_4 # array - 配列構造を保持
+        elseif ET == Vector{UInt8}
             TYPE_2 # byte string
         elseif ET == String
             TYPE_3 # text string

@@ -38,6 +38,8 @@ include("decode.jl")
 
 export encode
 export decode
+export Tag
+export UndefLength
 # export Undefined
 
 
